@@ -12,7 +12,12 @@ import cz.encircled.jput.recorder.ResultRecorder
 import cz.encircled.jput.reporter.JPutConsoleReporter
 import cz.encircled.jput.reporter.JPutReporter
 import org.apache.http.HttpHost
+import org.apache.http.auth.AuthScope
+import org.apache.http.auth.UsernamePasswordCredentials
+import org.apache.http.impl.client.BasicCredentialsProvider
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder
 import org.elasticsearch.client.RestClient
+import org.elasticsearch.client.RestClientBuilder
 import org.slf4j.LoggerFactory
 import java.lang.reflect.Method
 
@@ -98,11 +103,18 @@ class JPutContext {
             val host = getProperty<String>(PROP_ELASTIC_HOST)
             val port = getProperty(PROP_ELASTIC_PORT, 80)
             val scheme = getProperty(PROP_ELASTIC_SCHEME, "http")
+            val user = getProperty(PROP_ELASTIC_USER, "")
+            val password = getProperty(PROP_ELASTIC_PASSWORD, "")
 
             log.info("JPut is using Elasticsearch recorder: $host")
 
-            val client = ElasticsearchClientWrapper(RestClient.builder(HttpHost(host, port, scheme)).setRequestConfigCallback {
-                it.setConnectTimeout(5000).setSocketTimeout(60000)
+            val credentialProvider = BasicCredentialsProvider()
+            credentialProvider.setCredentials(AuthScope.ANY,UsernamePasswordCredentials(user, password))
+
+            val client = ElasticsearchClientWrapper(RestClient.builder(HttpHost(host, port, scheme)).setHttpClientConfigCallback(RestClientBuilder.HttpClientConfigCallback {
+                it.setDefaultCredentialsProvider(credentialProvider)
+            }).setRequestConfigCallback {
+                  it.setConnectTimeout(5000).setSocketTimeout(60000)
             })
             val elastic = ElasticsearchResultRecorder(client)
             elastic.doCleanup()
@@ -173,6 +185,17 @@ class JPutContext {
          * Network scheme, e.g. http/https
          */
         const val PROP_ELASTIC_SCHEME = PREFIX + "storage.elastic.scheme"
+
+
+        /**
+         * HTTP Basic-Authentication User
+         */
+        const val PROP_ELASTIC_USER = PREFIX + "storage.elastic.user"
+
+        /**
+         * HTTP Basic-Authentication Password
+         */
+        const val PROP_ELASTIC_PASSWORD = PREFIX + "storage.elastic.password"
 
         /**
          * Elasticsearch index name to be used
